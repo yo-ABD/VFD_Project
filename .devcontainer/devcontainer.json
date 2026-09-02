@@ -1,0 +1,9 @@
+{
+    "name": "VFD Development",
+    "build": {
+        "dockerfile": "../Dockerfile"
+    },
+    "extensions": [
+        "ms-vscode.cpptools"
+    ]
+}
