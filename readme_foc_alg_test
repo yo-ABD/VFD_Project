@@ -1,0 +1,89 @@
+This file contains the architecture, the flow and the proposed calculations for the FOC being worked upon.
+ADC reads Ia, Ib
+        ↓
+Clarke Transform  →  Ialpha, Ibeta
+        ↓
+Park Transform    →  Id, Iq        (needs theta from encoder)
+        ↓
+Id PI Controller  →  Vd            (Id ref = 0 for PMSM)
+Iq PI Controller  →  Vq            (Iq ref = from speed ref)
+        ↓
+Inverse Park      →  Valpha, Vbeta (needs theta)
+        ↓
+SVPWM             →  CCR1, CCR2, CCR3
+        ↓
+TIM1 PWM output   →  IGBT gates    →  Motor
+
+
+Inputs (fake for now):
+
+Ia, Ib — phase currents from ADC (we fake as sine waves)
+theta — rotor angle from encoder (we fake as incrementing float)
+speed_ref — operator speed reference
+
+Calculated inside:
+
+Ic = -(Ia + Ib) — Kirchhoff, no third sensor needed
+Ialpha, Ibeta — after Clarke
+Id, Iq — after Park
+Vd, Vq — after PI controllers
+Valpha, Vbeta — after Inverse Park
+CCR1, CCR2, CCR3 — after SVPWM
+
+State:
+
+PI integrators — must persist between calls
+Drive state — INIT / READY / RUNNING / FAULT
+
+
+Proposed File Structure
+src/
+├── foc_transforms.cpp     — Clarke, Park, Inverse Park
+├── pi_controller.cpp      — PI struct, calculate()
+├── svpwm.cpp              — sector detection, T1/T2/T0, CCR values
+├── foc_controller.cpp     — ties everything together, one foc_step() call
+├── mock_hal.cpp           — fake ADC, fake encoder, fake PWM write
+└── main_sim.cpp           — runs the loop, prints output
+
+include/
+├── foc_transforms.h
+├── pi_controller.h
+├── svpwm.h
+├── foc_controller.h
+└── mock_hal.h
+
+// foc_transforms
+void clarke(float Ia, float Ib, float &Ialpha, float &Ibeta);
+void park(float Ialpha, float Ibeta, float theta, float &Id, float &Iq);
+void inverse_park(float Vd, float Vq, float theta, float &Valpha, float &Vbeta);
+
+// pi_controller
+struct PIController { float Kp, Ki, dt, integrator, limit; };
+float pi_calculate(PIController &pi, float error);
+
+// svpwm
+void svpwm(float Valpha, float Vbeta, float Vbus, uint32_t ARR,
+           uint32_t &CCR1, uint32_t &CCR2, uint32_t &CCR3);
+
+// mock_hal
+float mock_adc_Ia(float theta);   // returns sin(theta)
+float mock_adc_Ib(float theta);   // returns sin(theta - 2pi/3)
+float mock_encoder_theta();       // advances theta each call
+
+// foc_controller — the main orchestrator
+void foc_init();
+void foc_step(float speed_ref);   // one complete FOC iteration
+
+foc_controller.cpp owns:
+    PIController id_pi      — flux controller
+    PIController iq_pi      — torque controller
+    float theta             — current rotor angle
+    float Id, Iq            — current feedback
+    float Vd, Vq            — voltage commands
+    float Ialpha, Ibeta     — intermediate
+    float Valpha, Vbeta     — intermediate
+    uint32_t CCR1,CCR2,CCR3 — output to mock PWM
+
+All declared static — no malloc, no global pollution
+
+
