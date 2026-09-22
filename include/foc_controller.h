@@ -113,7 +113,6 @@ void foc_get_state(float &Id, float &Iq,
                    float &Vd, float &Vq,
                    float &theta);
 
-
 /**
  * foc_reset
  * ---------
@@ -121,6 +120,19 @@ void foc_get_state(float &Id, float &Iq,
  * Call on fault clearance or drive stop.
  */
 void foc_reset(void);
+
+/**
+ * foc_set_feedback
+ * ----------------
+ * Override Id Iq with external values from motor model.
+ * Call after motor model calculates new Id Iq.
+ * Next foc_step() will skip Clarke and Park.
+ * Uses these values directly in PI controllers.
+ *
+ * @param Id  Motor model flux current amps
+ * @param Iq  Motor model torque current amps
+ */
+void foc_set_feedback(float Id, float Iq);
 
 
 #endif /* FOC_CONTROLLER_H */
